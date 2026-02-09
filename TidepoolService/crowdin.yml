@@ -1,0 +1,7 @@
+files:
+  - source: /TidepoolServiceKit/Localizable.xcstrings
+    translation: /TidepoolServiceKit/Localizable.xcstrings
+    multilingual: 1
+  - source: /TidepoolServiceKitUI/Localizable.xcstrings
+    translation: /TidepoolServiceKitUI/Localizable.xcstrings
+    multilingual: 1

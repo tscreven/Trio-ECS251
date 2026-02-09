@@ -1,0 +1,7 @@
+files:
+  - source: /LibreTransmitterUI/Localizable.xcstrings
+    translation: /LibreTransmitterUI/Localizable.xcstrings
+    multilingual: 1
+  - source: /LibreTransmitter/Localizable.xcstrings
+    translation: /LibreTransmitter/Localizable.xcstrings
+    multilingual: 1
