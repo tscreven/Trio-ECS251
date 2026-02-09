@@ -1,3 +1,6 @@
+# Trio Feature Integration Project
+Project intended to allow users to incorporate new features/additions to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Safety rails + data sharing currently under construction. Below is the instructions for Trio from the actual Trio repo:
+
 # Trio
 
 ## Introduction
