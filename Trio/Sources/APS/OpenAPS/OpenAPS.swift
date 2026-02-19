@@ -2,6 +2,7 @@ import Combine
 import CoreData
 import Foundation
 import JavaScriptCore
+import SwiftData
 
 final class OpenAPS {
     private let jsWorker = JavaScriptWorker()
@@ -11,6 +12,7 @@ final class OpenAPS {
     private let tddStorage: TDDStorage
 
     let context = CoreDataStack.shared.newTaskContext()
+    let sharedContext = ModelContext(SwiftDataController.shared.container)
 
     let jsonConverter = JSONConverter()
 
@@ -117,7 +119,57 @@ final class OpenAPS {
         }
     }
 
+    /// Fetch AI carb predictions and run it through clamping algorithm.
     private func fetchAndProcessCarbs(additionalCarbs: Decimal? = nil, carbsDate: Date? = nil) async throws -> String {
+        // Fetch from shared storage and add as an entry
+        let fetchedAIEntries: [[String: Any]]? = {
+            var descriptor = FetchDescriptor<Item>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            do {
+                let items: [Item] = try sharedContext.fetch(descriptor)
+                // Convert items to accepted JSON format
+                let entries = items.map { $0.toCarbEntry() }
+                print("IPC: Found \(entries)")
+                return entries
+            } catch {
+                return nil
+            }
+        }()
+
+        // Use a mutable variable for potential DEBUG injection or clamping
+        var aiEntriesSource = fetchedAIEntries
+
+        #if DEBUG
+            aiEntriesSource = debugAIEntries()
+        #endif
+
+        let clampedAIEntries: [[String: Any]]?
+        if let aiEntries = aiEntriesSource {
+            do {
+                clampedAIEntries = try await clampCarbs(aiEntries)
+            } catch {
+                debug(.openAPS, "Failed to clamp AI carb entries: \(error)")
+                clampedAIEntries = aiEntries
+            }
+        } else {
+            clampedAIEntries = nil
+        }
+
+        lazy var appendingEntry: (String, [[String: Any]]) -> String = { jsonArray, additionalEntry in
+            // Assuming jsonArray is a String, convert it to a list of dictionaries first
+            if let jsonData = jsonArray.data(using: .utf8) {
+                var jsonList = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [[String: Any]]
+                jsonList?.append(contentsOf: additionalEntry)
+
+                // Convert back to JSON string
+                if let updatedJsonData = try? JSONSerialization
+                    .data(withJSONObject: jsonList ?? [], options: .prettyPrinted)
+                {
+                    return String(data: updatedJsonData, encoding: .utf8) ?? jsonArray
+                }
+            }
+            return jsonArray
+        }
+
         let results = try await CoreDataStack.shared.fetchEntitiesAsync(
             ofType: CarbEntryStored.self,
             onContext: context,
@@ -149,24 +201,198 @@ final class OpenAPS {
                     "enteredBy": "Trio"
                 ] as [String: Any]
 
-                // Assuming jsonArray is a String, convert it to a list of dictionaries first
-                if let jsonData = jsonArray.data(using: .utf8) {
-                    var jsonList = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [[String: Any]]
-                    jsonList?.append(additionalEntry)
+                jsonArray = appendingEntry(jsonArray, [additionalEntry])
+            }
 
-                    // Convert back to JSON string
-                    if let updatedJsonData = try? JSONSerialization
-                        .data(withJSONObject: jsonList ?? [], options: .prettyPrinted)
-                    {
-                        jsonArray = String(data: updatedJsonData, encoding: .utf8) ?? jsonArray
-                    }
-                }
+            if let AIentries = clampedAIEntries ?? aiEntriesSource {
+                jsonArray = appendingEntry(jsonArray, AIentries)
             }
 
             return jsonArray
         }
 
         return json
+    }
+
+    #if DEBUG
+        private func debugAIEntries() -> [[String: Any]] {
+            let now = Date()
+            let formatter = ISO8601DateFormatter()
+
+            let entries: [(minutesAgo: Int, carbs: Double)] = [
+                (20, 12),
+                (15, 18),
+                (10, 8),
+                (5, 22),
+                (0, 16)
+            ]
+
+            return entries.map { entry in
+                let date = now.addingTimeInterval(TimeInterval(-entry.minutesAgo * 60))
+                let formattedDate = formatter.string(from: date)
+                return [
+                    "carbs": entry.carbs,
+                    "actualDate": formattedDate,
+                    "id": UUID().uuidString,
+                    "note": "debug",
+                    "protein": 0,
+                    "created_at": formattedDate,
+                    "isFPU": false,
+                    "fat": 0,
+                    "enteredBy": "Trio-Debug"
+                ]
+            }
+        }
+    #endif
+
+    private func clampCarbs(_ aiEntries: [[String: Any]]) async throws -> [[String: Any]] {
+        let lookback = 5
+        guard !aiEntries.isEmpty else { return aiEntries }
+
+        let glucoseEntries = try await fetchRecentGlucoseEntries(fetchLimit: lookback + 1)
+        guard glucoseEntries.count >= lookback + 1 else {
+            return aiEntries
+        }
+
+        let iobEntries = storage.retrieve(OpenAPS.Monitor.iob, as: [IOBEntry].self) ?? []
+        guard iobEntries.count >= lookback + 1 else {
+            return aiEntries
+        }
+
+        let earliestGlucoseDate = glucoseEntries[glucoseEntries.count - 1 - lookback].date
+        let bolusEntries = try await fetchBolusEntries(since: earliestGlucoseDate)
+
+        let profileJson = loadFileFromStorage(name: Settings.profile)
+        guard let profile = try? JSONBridge.profile(from: profileJson) else {
+            return aiEntries
+        }
+
+        let clampedTotal = addedGlucoseClamp(
+            externalCarbs: aiEntries,
+            glucoseEntries: glucoseEntries,
+            iobEntries: iobEntries,
+            bolusEntries: bolusEntries,
+            insulinSensitivity: profile.sensitivityFor()
+        )
+
+        guard let clampedTotal else {
+            return aiEntries
+        }
+
+        return applyClampedTotal(clampedTotal, to: aiEntries, lookback: lookback)
+    }
+
+    private func addedGlucoseClamp(
+        externalCarbs: [[String: Any]],
+        glucoseEntries: [GlucoseStored],
+        iobEntries: [IOBEntry],
+        bolusEntries: [BolusStored],
+        insulinSensitivity: Decimal
+    ) -> Double? {
+        let lookback = 5
+        let errorAllow = 0.4
+
+        let sortedGlucose = glucoseEntries
+            .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
+        let sortedIob = iobEntries
+        let externalCarbValues = externalCarbs.compactMap { $0["carbs"] as? Double }
+
+        guard sortedGlucose.count >= lookback + 1,
+              sortedIob.count >= lookback + 1,
+              !externalCarbValues.isEmpty
+        else {
+            return nil
+        }
+
+        let deltaGlucose = Double(sortedGlucose[sortedGlucose.count - 1 - lookback].glucose)
+            - Double(sortedGlucose.last?.glucose ?? 0)
+
+        let insulinInjected = bolusEntries
+            .compactMap { $0.amount?.doubleValue }
+        let insulinActive = NSDecimalNumber(decimal: sortedIob.last?.iob ?? 0).doubleValue
+            - NSDecimalNumber(decimal: sortedIob[sortedIob.count - 1 - lookback].iob).doubleValue
+            + insulinInjected.suffix(lookback).reduce(0, +)
+
+        let addedGlucose = deltaGlucose + insulinActive * NSDecimalNumber(decimal: insulinSensitivity).doubleValue
+        let carbLookback = externalCarbValues.suffix(lookback).reduce(0, +)
+
+        let maxAg = addedGlucose * (1 + errorAllow)
+        let minAg = addedGlucose * (1 - errorAllow)
+        let lowerBound = min(minAg, maxAg)
+        let upperBound = max(minAg, maxAg)
+
+        let clamped = min(max(carbLookback, lowerBound), upperBound)
+        return max(0, clamped)
+    }
+
+    private func applyClampedTotal(_ clampedTotal: Double, to aiEntries: [[String: Any]], lookback: Int) -> [[String: Any]] {
+        var updated = aiEntries
+        let indices = Array(updated.indices.suffix(lookback))
+        let currentTotal = indices.compactMap { updated[$0]["carbs"] as? Double }.reduce(0, +)
+
+        guard !indices.isEmpty else { return updated }
+
+        if currentTotal <= 0 {
+            if let lastIndex = indices.last {
+                updated[lastIndex]["carbs"] = max(0, clampedTotal)
+            }
+            return updated
+        }
+
+        let scale = clampedTotal / currentTotal
+        for index in indices {
+            if let carbs = updated[index]["carbs"] as? Double {
+                updated[index]["carbs"] = max(0, carbs * scale)
+            }
+        }
+
+        return updated
+    }
+
+    private func fetchRecentGlucoseEntries(fetchLimit: Int) async throws -> [GlucoseStored] {
+        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
+            ofType: GlucoseStored.self,
+            onContext: context,
+            predicate: NSPredicate.predicateForOneDayAgoInMinutes,
+            key: "date",
+            ascending: false,
+            fetchLimit: fetchLimit,
+            batchSize: fetchLimit
+        )
+
+        return try await context.perform {
+            guard let glucoseResults = results as? [GlucoseStored] else {
+                throw CoreDataError.fetchError(function: #function, file: #file)
+            }
+
+            return glucoseResults
+        }
+    }
+
+    private func fetchBolusEntries(since: Date?) async throws -> [BolusStored] {
+        let predicate: NSPredicate
+        if let since {
+            predicate = NSPredicate(format: "pumpEvent.timestamp >= %@", since as NSDate)
+        } else {
+            predicate = NSPredicate(value: true)
+        }
+
+        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
+            ofType: BolusStored.self,
+            onContext: context,
+            predicate: predicate,
+            key: "pumpEvent.timestamp",
+            ascending: false,
+            fetchLimit: 50
+        )
+
+        return try await context.perform {
+            guard let bolusResults = results as? [BolusStored] else {
+                throw CoreDataError.fetchError(function: #function, file: #file)
+            }
+
+            return bolusResults
+        }
     }
 
     private func fetchPumpHistoryObjectIDs() async throws -> [NSManagedObjectID]? {
@@ -288,10 +514,6 @@ final class OpenAPS {
         // temp_basal
         let tempBasal = currentTemp.rawJSON
 
-        /*
-         TODO: TS
-         Read carbs from JSON, send carbs to core data.
-         */
         // Perform asynchronous calls in parallel
         async let pumpHistoryObjectIDs = fetchPumpHistoryObjectIDs() ?? []
         async let carbs = fetchAndProcessCarbs(additionalCarbs: simulatedCarbsAmount ?? 0, carbsDate: simulatedCarbsDate)
@@ -541,15 +763,31 @@ final class OpenAPS {
 
         // Check for active Temp Targets and adjust HBT if necessary
         try await context.perform {
-            // Check if a Temp Target is active and if its HBT differs from user preferences
+            // Check if a Temp Target is active and check HBT differs from setting and adjust
             if let activeTempTarget = try self.fetchActiveTempTargets().first,
                activeTempTarget.enabled,
-               let activeHBT = activeTempTarget.halfBasalTarget?.decimalValue,
-               activeHBT != defaultHalfBasalTarget
+               let targetValue = activeTempTarget.target?.decimalValue
             {
-                // Overwrite the HBT in preferences
-                adjustedPreferences.halfBasalExerciseTarget = activeHBT
-                debug(.openAPS, "Updated halfBasalExerciseTarget to active Temp Target value: \(activeHBT)")
+                // Compute effective HBT - handles both custom HBT and standard TT (where HBT might need adjustment)
+                let effectiveHBT = TempTargetCalculations.computeEffectiveHBT(
+                    tempTargetHalfBasalTarget: activeTempTarget.halfBasalTarget?.decimalValue,
+                    settingHalfBasalTarget: defaultHalfBasalTarget,
+                    target: targetValue,
+                    autosensMax: preferences.autosensMax
+                )
+
+                if let effectiveHBT, effectiveHBT != defaultHalfBasalTarget {
+                    adjustedPreferences.halfBasalExerciseTarget = effectiveHBT
+                    let percentage = Int(TempTargetCalculations.computeAdjustedPercentage(
+                        halfBasalTarget: effectiveHBT,
+                        target: targetValue,
+                        autosensMax: preferences.autosensMax
+                    ))
+                    debug(
+                        .openAPS,
+                        "TempTarget: target=\(targetValue), HBT=\(defaultHalfBasalTarget), effectiveHBT=\(effectiveHBT), percentage=\(percentage)%, adjustmentType=Custom"
+                    )
+                }
             }
             // Overwrite the lowTTlowersSens if autosensMax does not support it
             if preferences.lowTemptargetLowersSensitivity, preferences.autosensMax <= 1 {
@@ -1190,3 +1428,4 @@ extension OpenAPS {
         }
     }
 }
+
