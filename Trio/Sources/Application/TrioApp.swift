@@ -79,7 +79,6 @@ extension Notification.Name {
         _ = resolver.resolve(GarminManager.self)!
         _ = resolver.resolve(ContactImageManager.self)!
         _ = resolver.resolve(BluetoothStateManager.self)!
-        _ = resolver.resolve(ThirdPartyCarbManager.self)!
         _ = resolver.resolve(PluginManager.self)!
         _ = resolver.resolve(AlertPermissionsChecker.self)!
         if #available(iOS 16.2, *) {

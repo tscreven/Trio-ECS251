@@ -81,7 +81,6 @@ final class BaseAPSManager: APSManager, Injectable {
     @Injected() private var settingsManager: SettingsManager!
     @Injected() private var tddStorage: TDDStorage!
     @Injected() private var broadcaster: Broadcaster!
-    @Injected() private var thirdPartyCarbManager: ThirdPartyCarbManager!
     @Persisted(key: "lastLoopStartDate") private var lastLoopStartDate: Date = .distantPast
     @Persisted(key: "lastLoopDate") var lastLoopDate: Date = .distantPast {
         didSet {
@@ -439,21 +438,6 @@ final class BaseAPSManager: APSManager, Injectable {
 
         try await calculateAndStoreTDD()
 
-        let thirdPartyCarbCalc = thirdPartyCarbManager.latestEntry
-        let carbsAmount: Decimal?
-        let carbsTimestamp: Date?
-        if let entry = thirdPartyCarbCalc, entry.carbs > 0 {
-            carbsAmount = Decimal(entry.carbs)
-            carbsTimestamp = entry.timestamp
-            debug(
-                .apsManager,
-                "Using third-party carbs as simulated carbs: \(entry.carbs)g from \(entry.source) at \(entry.timestamp)"
-            )
-        } else {
-            carbsAmount = nil
-            carbsTimestamp = nil
-        }
-
         // Fetch glucose asynchronously
         let glucose = try await fetchGlucose(predicate: NSPredicate.predicateForOneHourAgo, fetchLimit: 6)
 
@@ -495,9 +479,7 @@ final class BaseAPSManager: APSManager, Injectable {
             let determination = try await openAPS.determineBasal(
                 currentTemp: await currentTemp,
                 clock: now,
-                useSwiftOref: settings.useSwiftOref,
-                simulatedCarbsAmount: carbsAmount,
-                simulatedCarbsDate: carbsTimestamp
+                useSwiftOref: settings.useSwiftOref
             )
 
             iobFileDidUpdate.send(())

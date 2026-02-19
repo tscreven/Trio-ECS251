@@ -37,11 +37,4 @@
    <FileRef
       location = "group:TidepoolService/TidepoolService.xcodeproj">
    </FileRef>
-   <Group
-      location = "group:Trio/Sources/Services/ThirdPartyCarbs"
-      name = "ThirdPartyCarbs">
-      <FileRef
-         location = "group:ThirdPartyCarbManager.swift">
-      </FileRef>
-   </Group>
 </Workspace>
