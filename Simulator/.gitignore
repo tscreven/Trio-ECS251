@@ -1,0 +1,21 @@
+# Build artifacts
+.build/
+DerivedData/
+state/
+ExampleInputs/
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Editor files
+*.swp
+*~
