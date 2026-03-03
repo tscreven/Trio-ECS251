@@ -3,6 +3,7 @@ import CoreData
 import Foundation
 import LoopKit
 import LoopKitUI
+import SwiftData
 import SwiftDate
 import Swinject
 
@@ -165,6 +166,9 @@ final class BaseAPSManager: APSManager, Injectable {
         deviceDataManager.recommendsLoop
             .receive(on: processQueue)
             .sink { [weak self] in
+                Task { [weak self] in
+                    await self?.syncLoopDataPointsToSwiftData()
+                }
                 self?.loop()
             }
             .store(in: &lifetime)
@@ -689,6 +693,160 @@ final class BaseAPSManager: APSManager, Injectable {
             return TempBasal(duration: durationMin, rate: rate, temp: .absolute, timestamp: date)
         default:
             return fetchedTempBasal
+        }
+    }
+
+    private func fetchDeterminationSamples(since: Date) async throws -> [(metric: String, timestamp: Date, value: Double)] {
+        let predicate = NSPredicate(format: "deliverAt >= %@", since as NSDate)
+        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
+            ofType: OrefDetermination.self,
+            onContext: privateContext,
+            predicate: predicate,
+            key: "deliverAt",
+            ascending: false,
+            batchSize: 100
+        )
+
+        return try await privateContext.perform {
+            guard let determinations = results as? [OrefDetermination] else {
+                throw CoreDataError.fetchError(function: #function, file: #file)
+            }
+
+            return determinations.flatMap { determination in
+                guard let timestamp = determination.timestamp ?? determination.deliverAt else {
+                    return [(metric: String, timestamp: Date, value: Double)]()
+                }
+
+                var samples: [(metric: String, timestamp: Date, value: Double)] = []
+                if let rate = determination.rate?.doubleValue {
+                    samples.append((metric: LoopDataPoint.Metric.basal, timestamp: timestamp, value: rate))
+                }
+                if let sensitivity = determination.insulinSensitivity?.doubleValue {
+                    samples.append((metric: LoopDataPoint.Metric.insulinSensitivity, timestamp: timestamp, value: sensitivity))
+                }
+
+                return samples
+            }
+        }
+    }
+
+    private func fetchGlucoseSamplesForSwiftDataSync(
+        predicate: NSPredicate,
+        fetchLimit: Int,
+        batchSize: Int
+    ) async throws -> [(metric: String, timestamp: Date, value: Double)] {
+        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
+            ofType: GlucoseStored.self,
+            onContext: privateContext,
+            predicate: predicate,
+            key: "date",
+            ascending: false,
+            fetchLimit: fetchLimit,
+            batchSize: batchSize
+        )
+
+        return try await privateContext.perform {
+            guard let glucoseEntries = results as? [GlucoseStored] else {
+                throw CoreDataError.fetchError(function: #function, file: #file)
+            }
+
+            return glucoseEntries.compactMap { glucose in
+                guard let date = glucose.date else { return nil }
+                return (
+                    metric: LoopDataPoint.Metric.glucose,
+                    timestamp: date,
+                    value: Double(glucose.glucose)
+                )
+            }
+        }
+    }
+
+    private func syncLoopDataPointsToSwiftData() async {
+        let now = Date()
+        let cutoff = Date.oneDayAgo
+        var samples: [(metric: String, timestamp: Date, value: Double)] = []
+
+        do {
+            let glucoseSamples = try await fetchGlucoseSamplesForSwiftDataSync(
+                predicate: NSPredicate.predicateForOneDayAgoInMinutes,
+                fetchLimit: 288,
+                batchSize: 50
+            )
+            samples.append(contentsOf: glucoseSamples)
+        } catch {
+            debug(.apsManager, "Failed fetching glucose samples for SwiftData sync: \(error)")
+        }
+
+        let iobEntries = storage.retrieve(OpenAPS.Monitor.iob, as: [IOBEntry].self) ?? []
+        let iobSamples: [(metric: String, timestamp: Date, value: Double)] = iobEntries.compactMap {
+            guard let time = $0.time,
+                  time >= cutoff
+            else {
+                return nil
+            }
+            return (
+                metric: LoopDataPoint.Metric.iob,
+                timestamp: time,
+                value: NSDecimalNumber(decimal: $0.iob).doubleValue
+            )
+        }
+        samples.append(contentsOf: iobSamples)
+
+        do {
+            let determinationSamples = try await fetchDeterminationSamples(since: cutoff)
+            samples.append(contentsOf: determinationSamples)
+        } catch {
+            debug(.apsManager, "Failed fetching determination samples for SwiftData sync: \(error)")
+        }
+
+        guard !samples.isEmpty else {
+            return
+        }
+
+        await MainActor.run {
+            let context = ModelContext(SwiftDataController.shared.container)
+
+            do {
+                let descriptor = FetchDescriptor<LoopDataPoint>()
+                let existingPoints = try context.fetch(descriptor)
+
+                for point in existingPoints where point.timestamp < cutoff {
+                    context.delete(point)
+                }
+
+                var dedupeKeys = Set(
+                    existingPoints
+                        .filter { $0.timestamp >= cutoff }
+                        .map { point in
+                            "\(point.metric)|\(Int(point.timestamp.timeIntervalSince1970))"
+                        }
+                )
+
+                let sortedSamples = samples.sorted { $0.timestamp < $1.timestamp }
+                for sample in sortedSamples {
+                    let roundedTimestamp = Date(timeIntervalSince1970: floor(sample.timestamp.timeIntervalSince1970))
+                    let key = "\(sample.metric)|\(Int(roundedTimestamp.timeIntervalSince1970))"
+                    guard !dedupeKeys.contains(key) else {
+                        continue
+                    }
+
+                    context.insert(
+                        LoopDataPoint(
+                            metric: sample.metric,
+                            timestamp: roundedTimestamp,
+                            value: sample.value
+                        )
+                    )
+                    dedupeKeys.insert(key)
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                    debug(.apsManager, "Synced loop datapoints to SwiftData at \(now)")
+                }
+            } catch {
+                debug(.apsManager, "Failed syncing loop datapoints to SwiftData: \(error)")
+            }
         }
     }
 

@@ -102,4 +102,3 @@ enum TempTargetCalculations {
         return nil
     }
 }
-

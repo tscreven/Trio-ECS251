@@ -9,7 +9,8 @@ class SwiftDataController {
     init() {
         let appGroupId = Bundle.main.appGroupSuiteName ?? ""
         let schema = Schema([
-            Item.self
+            Item.self,
+            LoopDataPoint.self
         ])
 
         if let sharedContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) {
@@ -88,5 +89,24 @@ struct CarbEstimationResult: Codable {
             "fat": 0,
             "enteredBy": "Trio"
         ]
+    }
+}
+
+@Model final class LoopDataPoint {
+    enum Metric {
+        static let glucose = "glucose"
+        static let iob = "iob"
+        static let basal = "basal"
+        static let insulinSensitivity = "insulinSensitivity"
+    }
+
+    var metric: String
+    var timestamp: Date
+    var value: Double
+
+    init(metric: String, timestamp: Date, value: Double) {
+        self.metric = metric
+        self.timestamp = timestamp
+        self.value = value
     }
 }

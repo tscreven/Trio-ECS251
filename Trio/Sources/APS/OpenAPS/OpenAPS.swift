@@ -5,6 +5,15 @@ import JavaScriptCore
 import SwiftData
 
 final class OpenAPS {
+    private struct GlucoseSnapshot {
+        let date: Date?
+        let glucose: Double
+    }
+
+    private struct BolusSnapshot {
+        let amount: Double
+    }
+
     private let jsWorker = JavaScriptWorker()
     private let processQueue = DispatchQueue(label: "OpenAPS.processQueue", qos: .utility)
 
@@ -250,16 +259,10 @@ final class OpenAPS {
         guard !aiEntries.isEmpty else { return aiEntries }
 
         let glucoseEntries = try await fetchRecentGlucoseEntries(fetchLimit: lookback + 1)
-        guard glucoseEntries.count >= lookback + 1 else {
-            return aiEntries
-        }
-
         let iobEntries = storage.retrieve(OpenAPS.Monitor.iob, as: [IOBEntry].self) ?? []
-        guard iobEntries.count >= lookback + 1 else {
-            return aiEntries
-        }
-
-        let earliestGlucoseDate = glucoseEntries[glucoseEntries.count - 1 - lookback].date
+        let earliestGlucoseDate = glucoseEntries.count >= lookback + 1
+            ? glucoseEntries[glucoseEntries.count - 1 - lookback].date
+            : nil
         let bolusEntries = try await fetchBolusEntries(since: earliestGlucoseDate)
 
         let profileJson = loadFileFromStorage(name: Settings.profile)
@@ -275,18 +278,24 @@ final class OpenAPS {
             insulinSensitivity: profile.sensitivityFor()
         )
 
-        guard let clampedTotal else {
-            return aiEntries
+        if let clampedTotal {
+            return applyClampedTotal(clampedTotal, to: aiEntries, lookback: lookback)
         }
 
-        return applyClampedTotal(clampedTotal, to: aiEntries, lookback: lookback)
+        return cobClamp(
+            externalCarbs: aiEntries,
+            glucoseEntries: glucoseEntries,
+            iobEntries: iobEntries,
+            bolusEntries: bolusEntries,
+            insulinSensitivity: profile.sensitivityFor()
+        ) ?? aiEntries
     }
 
     private func addedGlucoseClamp(
         externalCarbs: [[String: Any]],
-        glucoseEntries: [GlucoseStored],
+        glucoseEntries: [GlucoseSnapshot],
         iobEntries: [IOBEntry],
-        bolusEntries: [BolusStored],
+        bolusEntries: [BolusSnapshot],
         insulinSensitivity: Decimal
     ) -> Double? {
         let lookback = 5
@@ -304,11 +313,11 @@ final class OpenAPS {
             return nil
         }
 
-        let deltaGlucose = Double(sortedGlucose[sortedGlucose.count - 1 - lookback].glucose)
-            - Double(sortedGlucose.last?.glucose ?? 0)
+        let deltaGlucose = sortedGlucose[sortedGlucose.count - 1 - lookback].glucose
+            - (sortedGlucose.last?.glucose ?? 0)
 
         let insulinInjected = bolusEntries
-            .compactMap { $0.amount?.doubleValue }
+            .map(\.amount)
         let insulinActive = NSDecimalNumber(decimal: sortedIob.last?.iob ?? 0).doubleValue
             - NSDecimalNumber(decimal: sortedIob[sortedIob.count - 1 - lookback].iob).doubleValue
             + insulinInjected.suffix(lookback).reduce(0, +)
@@ -349,7 +358,135 @@ final class OpenAPS {
         return updated
     }
 
-    private func fetchRecentGlucoseEntries(fetchLimit: Int) async throws -> [GlucoseStored] {
+    private func cobClamp(
+        externalCarbs: [[String: Any]],
+        glucoseEntries: [GlucoseSnapshot],
+        iobEntries: [IOBEntry],
+        bolusEntries: [BolusSnapshot],
+        insulinSensitivity: Decimal
+    ) -> [[String: Any]]? {
+        let hoursWindow = 4.0
+        let errorAllow = 0.3
+        let now = Date()
+
+        guard let addedGlucose = calculateAddedGlucose(
+            glucoseEntries: glucoseEntries,
+            iobEntries: iobEntries,
+            bolusEntries: bolusEntries,
+            insulinSensitivity: insulinSensitivity
+        ) else {
+            return nil
+        }
+
+        var entriesInWindow: [(index: Int, carbs: Double, hoursAgo: Double)] = []
+        for (index, entry) in externalCarbs.enumerated() {
+            guard let carbs = entry["carbs"] as? Double,
+                  carbs > 0,
+                  let entryDate = carbEntryDate(entry)
+            else {
+                continue
+            }
+
+            let hoursAgo = now.timeIntervalSince(entryDate) / 3600
+            guard (0 ... hoursWindow).contains(hoursAgo) else {
+                continue
+            }
+
+            entriesInWindow.append((index, carbs, hoursAgo))
+        }
+
+        guard !entriesInWindow.isEmpty else {
+            return nil
+        }
+
+        let cobTotal = entriesInWindow.reduce(0.0) { partialResult, entry in
+            let digestedPerHour = entry.carbs / hoursWindow
+            let cobEntry = max(0, entry.carbs - entry.hoursAgo * digestedPerHour)
+            return partialResult + cobEntry
+        }
+
+        let maxBound = addedGlucose * (1 + errorAllow)
+        let minBound = addedGlucose * (1 - errorAllow)
+        let lowerBound = min(minBound, maxBound)
+        let upperBound = max(minBound, maxBound)
+
+        guard cobTotal < lowerBound || cobTotal > upperBound else {
+            return nil
+        }
+
+        guard cobTotal != 0 else {
+            return nil
+        }
+
+        let closestBound = (cobTotal < lowerBound ? lowerBound : upperBound).rounded()
+        let scale = closestBound / cobTotal
+
+        var updated = externalCarbs
+        for entry in entriesInWindow {
+            if let carbs = updated[entry.index]["carbs"] as? Double {
+                updated[entry.index]["carbs"] = max(0, carbs * scale)
+            }
+        }
+
+        return updated
+    }
+
+    private func calculateAddedGlucose(
+        glucoseEntries: [GlucoseSnapshot],
+        iobEntries: [IOBEntry],
+        bolusEntries: [BolusSnapshot],
+        insulinSensitivity: Decimal
+    ) -> Double? {
+        let lookback = 5
+        let sortedGlucose = glucoseEntries
+            .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
+        let sortedIob = iobEntries
+
+        guard sortedGlucose.count >= lookback + 1,
+              sortedIob.count >= lookback + 1
+        else {
+            return nil
+        }
+
+        let deltaGlucose = sortedGlucose[sortedGlucose.count - 1 - lookback].glucose
+            - (sortedGlucose.last?.glucose ?? 0)
+
+        let insulinInjected = bolusEntries
+            .map(\.amount)
+        let insulinActive = NSDecimalNumber(decimal: sortedIob.last?.iob ?? 0).doubleValue
+            - NSDecimalNumber(decimal: sortedIob[sortedIob.count - 1 - lookback].iob).doubleValue
+            + insulinInjected.suffix(lookback).reduce(0, +)
+
+        return deltaGlucose + insulinActive * NSDecimalNumber(decimal: insulinSensitivity).doubleValue
+    }
+
+    private func carbEntryDate(_ entry: [String: Any]) -> Date? {
+        if let date = entry["actualDate"] as? Date {
+            return date
+        }
+        if let date = entry["created_at"] as? Date {
+            return date
+        }
+        if let dateString = entry["actualDate"] as? String {
+            if let date = OpenAPS.dateFormatter.date(from: dateString) {
+                return date
+            }
+            if let date = ISO8601DateFormatter().date(from: dateString) {
+                return date
+            }
+        }
+        if let dateString = entry["created_at"] as? String {
+            if let date = OpenAPS.dateFormatter.date(from: dateString) {
+                return date
+            }
+            if let date = ISO8601DateFormatter().date(from: dateString) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    private func fetchRecentGlucoseEntries(fetchLimit: Int) async throws -> [GlucoseSnapshot] {
         let results = try await CoreDataStack.shared.fetchEntitiesAsync(
             ofType: GlucoseStored.self,
             onContext: context,
@@ -365,11 +502,16 @@ final class OpenAPS {
                 throw CoreDataError.fetchError(function: #function, file: #file)
             }
 
-            return glucoseResults
+            return glucoseResults.map { entry in
+                GlucoseSnapshot(
+                    date: entry.date,
+                    glucose: Double(entry.glucose)
+                )
+            }
         }
     }
 
-    private func fetchBolusEntries(since: Date?) async throws -> [BolusStored] {
+    private func fetchBolusEntries(since: Date?) async throws -> [BolusSnapshot] {
         let predicate: NSPredicate
         if let since {
             predicate = NSPredicate(format: "pumpEvent.timestamp >= %@", since as NSDate)
@@ -391,7 +533,11 @@ final class OpenAPS {
                 throw CoreDataError.fetchError(function: #function, file: #file)
             }
 
-            return bolusResults
+            return bolusResults.map { entry in
+                BolusSnapshot(
+                    amount: entry.amount?.doubleValue ?? 0
+                )
+            }
         }
     }
 
@@ -1428,4 +1574,3 @@ extension OpenAPS {
         }
     }
 }
-

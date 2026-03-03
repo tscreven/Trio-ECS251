@@ -614,7 +614,6 @@
 		CEF1ED6B2D58FB5800FAF41E /* CGMOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEF1ED6A2D58FB4600FAF41E /* CGMOptions.swift */; };
 		D266A3B72F46BE31001AC874 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = D266A3B62F46BE31001AC874 /* Item.swift */; };
 		D266A3BB2F46BF98001AC874 /* TempTargetCalculations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D266A3BA2F46BF8E001AC874 /* TempTargetCalculations.swift */; };
-		D28464B22F29690300E25366 /* ThirdPartyCarbManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D28464B02F29690300E25366 /* ThirdPartyCarbManager.swift */; };
 		D6D02515BBFBE64FEBE89856 /* DataTableRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881E04BA5E0A003DE8E0A9C6 /* DataTableRootView.swift */; };
 		D6DEC113821A7F1056C4AA1E /* NightscoutConfigDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2A13DF0EDEEEDC4106AA2A /* NightscoutConfigDataFlow.swift */; };
 		DBA5254DBB2586C98F61220C /* ISFEditorProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9F137F126D9F8DEB799F26 /* ISFEditorProvider.swift */; };
@@ -1566,7 +1565,6 @@
 		D0BDC6993C1087310EDFC428 /* CarbRatioEditorRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CarbRatioEditorRootView.swift; sourceTree = "<group>"; };
 		D266A3B62F46BE31001AC874 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		D266A3BA2F46BF8E001AC874 /* TempTargetCalculations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempTargetCalculations.swift; sourceTree = "<group>"; };
-		D28464B02F29690300E25366 /* ThirdPartyCarbManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThirdPartyCarbManager.swift; sourceTree = "<group>"; };
 		DC2C6489D29ECCCAD78E0721 /* GlucoseNotificationSettingsStateModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlucoseNotificationSettingsStateModel.swift; sourceTree = "<group>"; };
 		DD09D47A2C5986D1003FEA5D /* CalendarEventSettingsDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventSettingsDataFlow.swift; sourceTree = "<group>"; };
 		DD09D47C2C5986DA003FEA5D /* CalendarEventSettingsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventSettingsProvider.swift; sourceTree = "<group>"; };
@@ -2292,7 +2290,6 @@
 				3811DEA525C9D88300A708ED /* UnlockManager */,
 				38E87406274F9AA500975559 /* UserNotifications */,
 				38E8754D275556E100975559 /* WatchManager */,
-				D28464B12F29690300E25366 /* ThirdPartyCarbs */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -3633,14 +3630,6 @@
 				CEE9A65B2BBB41C800EB5194 /* CalibrationService.swift */,
 			);
 			path = Calibrations;
-			sourceTree = "<group>";
-		};
-		D28464B12F29690300E25366 /* ThirdPartyCarbs */ = {
-			isa = PBXGroup;
-			children = (
-				D28464B02F29690300E25366 /* ThirdPartyCarbManager.swift */,
-			);
-			path = ThirdPartyCarbs;
 			sourceTree = "<group>";
 		};
 		D533BF261CDC1C3F871E7BFD /* NightscoutConfig */ = {
@@ -5157,7 +5146,6 @@
 				DD32CF9E2CC824C5003686D6 /* TrioRemoteControl+Override.swift in Sources */,
 				BD249D922D42FC5300412DEB /* GlucoseSectorChart.swift in Sources */,
 				23888883D4EA091C88480FF2 /* TreatmentsProvider.swift in Sources */,
-				D28464B22F29690300E25366 /* ThirdPartyCarbManager.swift in Sources */,
 				38E98A2D25F52DC400C0CED0 /* NSLocking+Extensions.swift in Sources */,
 				715120D22D3C2BB4005D9FB6 /* GlucoseNotificationsOption.swift in Sources */,
 				BDBAACFA2C2D439700370AAE /* OverrideData.swift in Sources */,
