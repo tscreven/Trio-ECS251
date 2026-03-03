@@ -92,8 +92,8 @@ extension ComputedPumpHistoryEvent {
     }
 }
 
-extension PumpHistoryEvent {
-    public func computedEvent() -> ComputedPumpHistoryEvent {
+public extension PumpHistoryEvent {
+    func computedEvent() -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: id,
             type: type,
@@ -114,8 +114,8 @@ extension PumpHistoryEvent {
     }
 }
 
-extension ComputedPumpHistoryEvent {
-    public func copyWith(duration: Decimal?) -> ComputedPumpHistoryEvent {
+public extension ComputedPumpHistoryEvent {
+    func copyWith(duration: Decimal?) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: id,
             type: type,
@@ -136,7 +136,7 @@ extension ComputedPumpHistoryEvent {
         )
     }
 
-    public func copyWith(duration: Decimal, timestamp: Date) -> ComputedPumpHistoryEvent {
+    func copyWith(duration: Decimal, timestamp: Date) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: id,
             type: type,
@@ -157,7 +157,7 @@ extension ComputedPumpHistoryEvent {
         )
     }
 
-    public func copyWith(duration: Decimal, timestamp: Date, omitFromTempHistory: Bool) -> ComputedPumpHistoryEvent {
+    func copyWith(duration: Decimal, timestamp: Date, omitFromTempHistory: Bool) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: id,
             type: type,
@@ -178,7 +178,7 @@ extension ComputedPumpHistoryEvent {
         )
     }
 
-    public func copyWith(insulin: Decimal?) -> ComputedPumpHistoryEvent {
+    func copyWith(insulin: Decimal?) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: id,
             type: type,
@@ -199,7 +199,7 @@ extension ComputedPumpHistoryEvent {
         )
     }
 
-    public static func zeroTempBasal(timestamp: Date, duration: Decimal, omitFromTempHistory: Bool) -> ComputedPumpHistoryEvent {
+    static func zeroTempBasal(timestamp: Date, duration: Decimal, omitFromTempHistory: Bool) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: UUID().uuidString,
             type: .tempBasal,
@@ -220,7 +220,7 @@ extension ComputedPumpHistoryEvent {
         )
     }
 
-    public static func tempBolus(timestamp: Date, insulin: Decimal) -> ComputedPumpHistoryEvent {
+    static func tempBolus(timestamp: Date, insulin: Decimal) -> ComputedPumpHistoryEvent {
         ComputedPumpHistoryEvent(
             id: UUID().uuidString,
             type: .bolus,

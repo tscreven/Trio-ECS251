@@ -64,9 +64,9 @@ struct Meal: ParsableCommand {
         abstract: "Calculate meal data including carbs on board (COB)."
     )
 
-    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)")  var input: String?
+    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)") var input: String?
 
-    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)")  var output: String?
+    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)") var output: String?
 
     func run() throws {
         // Read input

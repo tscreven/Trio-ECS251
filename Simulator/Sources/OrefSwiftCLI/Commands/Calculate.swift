@@ -14,8 +14,7 @@ struct Calculate: ParsableCommand {
         abstract: "Calculate insulin dosing for a given algorithm state and new glucose reading."
     )
 
-    @Option(name: [.customShort("s"), .long], help: "Path to simulation state directory")
-    var stateDir: String
+    @Option(name: [.customShort("s"), .long], help: "Path to simulation state directory") var stateDir: String
 
     @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)") var input: String?
 
@@ -196,7 +195,11 @@ struct Calculate: ParsableCommand {
             // 11. Store pump events
             if let determination = result {
                 if determination.rate != nil, let duration = determination.duration {
-                    try storage.storeTempBasal(at: now, rate: determination.rate!, duration: Int(truncating: duration as NSDecimalNumber))
+                    try storage.storeTempBasal(
+                        at: now,
+                        rate: determination.rate!,
+                        duration: Int(truncating: duration as NSDecimalNumber)
+                    )
                 }
                 if let units = determination.units, units > 0 {
                     try storage.storeSMB(at: now, amount: units)

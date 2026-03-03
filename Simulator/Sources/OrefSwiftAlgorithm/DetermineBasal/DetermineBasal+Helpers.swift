@@ -1,7 +1,7 @@
 import Foundation
 import OrefSwiftModels
 
-extension DeterminationGenerator {
+public extension DeterminationGenerator {
     /// helper struct for managing glucose
     private struct GlucoseReading {
         let glucose: Int
@@ -16,7 +16,7 @@ extension DeterminationGenerator {
     ///
     /// - Returns: A `GlucoseStatus` containing the smoothed glucose and delta statistics.
     /// - Returns: `nil` if no valid glucose readings are found.
-    public static func getGlucoseStatus(glucoseReadings: [BloodGlucose]) throws -> GlucoseStatus? {
+    static func getGlucoseStatus(glucoseReadings: [BloodGlucose]) throws -> GlucoseStatus? {
         let glucoseReadings = glucoseReadings.compactMap { reading -> GlucoseReading? in
             guard let glucose = reading.glucose ?? reading.sgv else { return nil }
             return GlucoseReading(glucose: glucose, date: reading.dateString, noise: reading.noise)
@@ -88,7 +88,7 @@ extension DeterminationGenerator {
         )
     }
 
-    public static func calculateExpectedDelta(
+    static func calculateExpectedDelta(
         targetGlucose: Decimal,
         eventualGlucose: Decimal,
         glucoseImpact: Decimal
@@ -98,7 +98,7 @@ extension DeterminationGenerator {
         return (glucoseImpact + (delta / fiveMinuteBlocks)).jsRounded(scale: 1)
     }
 
-    public static func calculateSensitivityRatio(
+    static func calculateSensitivityRatio(
         currentGlucose: Decimal,
         profile: Profile,
         autosens: Autosens?,
@@ -144,7 +144,7 @@ extension DeterminationGenerator {
         return (ratio, updateAutosensRatio)
     }
 
-    public static func computeAdjustedBasal(
+    static func computeAdjustedBasal(
         profile: Profile,
         currentBasalRate: Decimal,
         sensitivityRatio: Decimal,
@@ -154,7 +154,7 @@ extension DeterminationGenerator {
         return TempBasalFunctions.roundBasal(profile: profile, basalRate: adjustedBasal)
     }
 
-    public static func computeAdjustedSensitivity(
+    static func computeAdjustedSensitivity(
         sensitivity: Decimal,
         sensitivityRatio: Decimal,
         trioCustomOrefVariables: TrioCustomOrefVariables
@@ -166,7 +166,7 @@ extension DeterminationGenerator {
 
     /// Checks if current temp basal matches last temp from IOB data.
     /// Returns nil if check passes, or the failure reason string if it fails.
-    public static func checkCurrentTempBasalRateSafety(
+    static func checkCurrentTempBasalRateSafety(
         currentTemp: TempBasal,
         lastTempTarget: IobResult.LastTemp?,
         currentTime: Date
@@ -194,7 +194,7 @@ extension DeterminationGenerator {
 
     /// Adjust glucose targets (min, max, target) based on autosens and/or noise.
     /// - Returns: adjusted targets and new threshold
-    public static func adjustGlucoseTargets(
+    static func adjustGlucoseTargets(
         profile: Profile,
         autosens: Autosens?,
         trioCustomOrefVariables: TrioCustomOrefVariables,
@@ -241,7 +241,7 @@ extension DeterminationGenerator {
         return (AdjustedGlucoseTargets(minGlucose: minGlucose, maxGlucose: maxGlucose, targetGlucose: targetGlucose), threshold)
     }
 
-    public static func buildGlucoseImpactSeries(
+    static func buildGlucoseImpactSeries(
         iobDataSeries: [IobResult],
         sensitivity: Decimal,
         withZeroTemp: Bool = false

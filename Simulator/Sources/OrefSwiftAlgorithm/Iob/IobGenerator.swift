@@ -1,7 +1,7 @@
 import Foundation
 import OrefSwiftModels
 
-public struct IobGenerator {
+public enum IobGenerator {
     public static func generate(
         history: [PumpHistoryEvent],
         profile: Profile,

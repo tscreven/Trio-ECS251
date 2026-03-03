@@ -1,7 +1,7 @@
 import Foundation
 import OrefSwiftModels
 
-public struct AutosensGenerator {
+public enum AutosensGenerator {
     /// Internal structure to keep track of bucketed glucose values
     struct BucketedGlucose {
         let glucose: Decimal

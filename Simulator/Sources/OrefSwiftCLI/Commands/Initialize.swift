@@ -13,11 +13,9 @@ struct Initialize: ParsableCommand {
         abstract: "Start a new simulator session with the given parameters."
     )
 
-    @Option(name: [.customShort("u"), .long], help: "Path to virtual user directory")
-    var virtualUser: String
+    @Option(name: [.customShort("u"), .long], help: "Path to virtual user directory") var virtualUser: String
 
-    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)")
-    var output: String?
+    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)") var output: String?
 
     func run() throws {
         // Validate virtual user directory

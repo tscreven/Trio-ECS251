@@ -58,9 +58,9 @@ struct IOB: ParsableCommand {
         abstract: "Calculate insulin on board (IOB)."
     )
 
-    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)")  var input: String?
+    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)") var input: String?
 
-    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)")  var output: String?
+    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)") var output: String?
 
     func run() throws {
         // Read input

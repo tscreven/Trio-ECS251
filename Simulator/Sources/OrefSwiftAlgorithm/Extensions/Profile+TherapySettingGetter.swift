@@ -1,9 +1,9 @@
 import Foundation
 import OrefSwiftModels
 
-extension Profile {
+public extension Profile {
     /// Returns the basal rate for the given time (default: now), or 0 if not found.
-    public func basalFor(time: Date = Date()) -> Decimal {
+    func basalFor(time: Date = Date()) -> Decimal {
         guard let entries = basalprofile, !entries.isEmpty else {
             return currentBasal ?? 0
         }
@@ -32,7 +32,7 @@ extension Profile {
     }
 
     /// Returns the ISF (insulin sensitivity factor) for the given time (default: now), or 200 if not found.
-    public func sensitivityFor(time: Date = Date()) -> Decimal {
+    func sensitivityFor(time: Date = Date()) -> Decimal {
         guard let isfProfile = isfProfile,
               !isfProfile.sensitivities.isEmpty
         else {
@@ -63,7 +63,7 @@ extension Profile {
     }
 
     /// Returns the carb ratio for the given time (default: now), or the top-level value, or 10 if not found.
-    public func carbRatioFor(time: Date = Date()) -> Decimal {
+    func carbRatioFor(time: Date = Date()) -> Decimal {
         // First: try using the dynamic schedule
         if let carbRatios = carbRatios, !carbRatios.schedule.isEmpty {
             let calendar = Calendar.current

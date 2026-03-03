@@ -26,7 +26,7 @@ struct SimulationStorage {
 
     // MARK: - Generic helpers
 
-    private func load<T: Decodable>(_ type: T.Type, from path: String) throws -> T {
+    private func load<T: Decodable>(_: T.Type, from path: String) throws -> T {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         return try JSONCoding.decoder.decode(T.self, from: data)
     }
@@ -41,10 +41,10 @@ struct SimulationStorage {
     // Maximum lookback windows for pruning stored data. If any algorithm
     // query is changed to look back further than these windows, these
     // constants MUST be updated to match. See Docs/simulation.md for details.
-    private static let glucoseRetention: TimeInterval = 24 * 60 * 60       // 24 hours
-    private static let pumpHistoryRetention: TimeInterval = 24 * 60 * 60   // 24 hours
-    private static let carbsRetention: TimeInterval = 24 * 60 * 60         // 24 hours
-    private static let tddRetention: TimeInterval = 10 * 24 * 60 * 60     // 10 days
+    private static let glucoseRetention: TimeInterval = 24 * 60 * 60 // 24 hours
+    private static let pumpHistoryRetention: TimeInterval = 24 * 60 * 60 // 24 hours
+    private static let carbsRetention: TimeInterval = 24 * 60 * 60 // 24 hours
+    private static let tddRetention: TimeInterval = 10 * 24 * 60 * 60 // 10 days
 
     func storeGlucose(at timestamp: Date, glucose: Decimal) throws {
         var records = try load([GlucoseRecord].self, from: glucosePath)
@@ -267,7 +267,7 @@ struct SimulationStorage {
         // Sum bolus (SMB) insulin
         let bolusInsulin = recent
             .filter { $0.type == .smb }
-            .compactMap { $0.amount }
+            .compactMap(\.amount)
             .reduce(Decimal(0), +)
 
         // Build effective temp basal intervals, truncating overlaps.
@@ -455,7 +455,7 @@ struct SimulationStorage {
         "basal_profile.json",
         "insulin_sensitivities.json",
         "carb_ratios.json",
-        "temptargets.json",
+        "temptargets.json"
     ]
 
     static func validateVirtualUserDirectory(_ path: String) throws {
@@ -481,7 +481,7 @@ struct SimulationStorage {
         }
     }
 
-    func loadProfileInputs(clock: Date) throws -> (
+    func loadProfileInputs(clock _: Date) throws -> (
         preferences: Preferences,
         pumpSettings: PumpSettings,
         bgTargets: BGTargets,
@@ -507,9 +507,9 @@ enum SimulationStorageError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .virtualUserDirectoryNotFound(let path):
+        case let .virtualUserDirectoryNotFound(path):
             return "Virtual user directory not found: \(path)"
-        case .missingVirtualUserFile(let file):
+        case let .missingVirtualUserFile(file):
             return "Missing required virtual user file: \(file)"
         }
     }

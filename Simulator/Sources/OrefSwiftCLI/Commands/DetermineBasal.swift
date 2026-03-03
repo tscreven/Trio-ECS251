@@ -85,9 +85,9 @@ struct DetermineBasal: ParsableCommand {
         abstract: "Determine basal rate adjustments based on current state."
     )
 
-    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)")  var input: String?
+    @Option(name: .shortAndLong, help: "Input file path (use '-' for STDIN)") var input: String?
 
-    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)")  var output: String?
+    @Option(name: .shortAndLong, help: "Output file path (use '-' for STDOUT)") var output: String?
 
     func run() throws {
         // Read input

@@ -1,7 +1,7 @@
 import Foundation
 import OrefSwiftModels
 
-public struct IobHistory {
+public enum IobHistory {
     public static let MAX_PUMP_HISTORY_HOURS: Double = 36
 
     struct PumpSuspended {

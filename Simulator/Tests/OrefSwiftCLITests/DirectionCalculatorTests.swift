@@ -1,66 +1,55 @@
-import Testing
 @testable import OrefSwiftCLI
 import OrefSwiftModels
+import Testing
 
-@Suite("DirectionCalculator")
-struct DirectionCalculatorTests {
-    @Test("tripleUp for delta > 17")
-    func tripleUp() {
+@Suite("DirectionCalculator") struct DirectionCalculatorTests {
+    @Test("tripleUp for delta > 17") func tripleUp() {
         #expect(DirectionCalculator.direction(from: 18) == .tripleUp)
         #expect(DirectionCalculator.direction(from: 30) == .tripleUp)
     }
 
-    @Test("doubleUp for delta 10-17")
-    func doubleUp() {
+    @Test("doubleUp for delta 10-17") func doubleUp() {
         #expect(DirectionCalculator.direction(from: 10) == .doubleUp)
         #expect(DirectionCalculator.direction(from: 17) == .doubleUp)
     }
 
-    @Test("singleUp for delta 5-9")
-    func singleUp() {
+    @Test("singleUp for delta 5-9") func singleUp() {
         #expect(DirectionCalculator.direction(from: 5) == .singleUp)
         #expect(DirectionCalculator.direction(from: 9) == .singleUp)
     }
 
-    @Test("fortyFiveUp for delta 3-4")
-    func fortyFiveUp() {
+    @Test("fortyFiveUp for delta 3-4") func fortyFiveUp() {
         #expect(DirectionCalculator.direction(from: 3) == .fortyFiveUp)
         #expect(DirectionCalculator.direction(from: 4) == .fortyFiveUp)
     }
 
-    @Test("flat for delta -2 to 2")
-    func flat() {
+    @Test("flat for delta -2 to 2") func flat() {
         #expect(DirectionCalculator.direction(from: 2) == .flat)
         #expect(DirectionCalculator.direction(from: 0) == .flat)
         #expect(DirectionCalculator.direction(from: -2) == .flat)
     }
 
-    @Test("fortyFiveDown for delta -3 to -4")
-    func fortyFiveDown() {
+    @Test("fortyFiveDown for delta -3 to -4") func fortyFiveDown() {
         #expect(DirectionCalculator.direction(from: -3) == .fortyFiveDown)
         #expect(DirectionCalculator.direction(from: -4) == .fortyFiveDown)
     }
 
-    @Test("singleDown for delta -5 to -9")
-    func singleDown() {
+    @Test("singleDown for delta -5 to -9") func singleDown() {
         #expect(DirectionCalculator.direction(from: -5) == .singleDown)
         #expect(DirectionCalculator.direction(from: -9) == .singleDown)
     }
 
-    @Test("doubleDown for delta -10 to -17")
-    func doubleDown() {
+    @Test("doubleDown for delta -10 to -17") func doubleDown() {
         #expect(DirectionCalculator.direction(from: -10) == .doubleDown)
         #expect(DirectionCalculator.direction(from: -17) == .doubleDown)
     }
 
-    @Test("tripleDown for delta < -17")
-    func tripleDown() {
+    @Test("tripleDown for delta < -17") func tripleDown() {
         #expect(DirectionCalculator.direction(from: -18) == .tripleDown)
         #expect(DirectionCalculator.direction(from: -30) == .tripleDown)
     }
 
-    @Test("boundary values at each threshold")
-    func boundaries() {
+    @Test("boundary values at each threshold") func boundaries() {
         // delta > 17 is tripleUp, so 17 is NOT tripleUp
         #expect(DirectionCalculator.direction(from: 17) == .doubleUp)
         // delta > 9 is doubleUp, so 9 is NOT doubleUp

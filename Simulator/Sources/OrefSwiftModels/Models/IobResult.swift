@@ -112,8 +112,8 @@ public struct IobResult: Codable {
     }
 }
 
-extension ComputedPumpHistoryEvent {
-    public func toLastTemp() -> IobResult.LastTemp? {
+public extension ComputedPumpHistoryEvent {
+    func toLastTemp() -> IobResult.LastTemp? {
         guard let rate = self.rate,
               let duration = self.duration
         else {

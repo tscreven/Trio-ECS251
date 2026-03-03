@@ -1,7 +1,7 @@
 import Foundation
-import Testing
 @testable import OrefSwiftCLI
 import OrefSwiftModels
+import Testing
 
 // Use whole-second epoch dates so they round-trip cleanly through ISO8601 JSON encoding.
 private let baseTime = Date(timeIntervalSince1970: 1_700_000_000)
@@ -19,10 +19,8 @@ private func cleanup(_ storage: SimulationStorage) {
 
 // MARK: - Glucose tests
 
-@Suite("SimulationStorage — Glucose", .serialized)
-struct GlucoseStorageTests {
-    @Test("store and fetch a single glucose reading")
-    func storeSingle() throws {
+@Suite("SimulationStorage — Glucose", .serialized) struct GlucoseStorageTests {
+    @Test("store and fetch a single glucose reading") func storeSingle() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -36,8 +34,7 @@ struct GlucoseStorageTests {
         #expect(results[0].direction == .flat)
     }
 
-    @Test("fetch returns newest first")
-    func newestFirst() throws {
+    @Test("fetch returns newest first") func newestFirst() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -52,8 +49,7 @@ struct GlucoseStorageTests {
         #expect(results[2].sgv == 100)
     }
 
-    @Test("fetch respects limit")
-    func limit() throws {
+    @Test("fetch respects limit") func limit() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -73,8 +69,7 @@ struct GlucoseStorageTests {
         #expect(results[2].sgv == 107)
     }
 
-    @Test("fetch filters out readings older than 24 hours")
-    func twentyFourHourWindow() throws {
+    @Test("fetch filters out readings older than 24 hours") func twentyFourHourWindow() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -87,8 +82,7 @@ struct GlucoseStorageTests {
         #expect(results.allSatisfy { $0.sgv != 80 })
     }
 
-    @Test("fetch excludes future readings")
-    func excludesFuture() throws {
+    @Test("fetch excludes future readings") func excludesFuture() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -100,8 +94,7 @@ struct GlucoseStorageTests {
         #expect(results[0].sgv == 100)
     }
 
-    @Test("direction is computed from consecutive readings")
-    func directionComputation() throws {
+    @Test("direction is computed from consecutive readings") func directionComputation() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -109,12 +102,11 @@ struct GlucoseStorageTests {
         try storage.storeGlucose(at: baseTime, glucose: 120) // delta = +20
 
         let results = storage.fetchGlucose(at: baseTime)
-        #expect(results[0].direction == .tripleUp)  // 120 - 100 = 20 > 17
-        #expect(results[1].direction == .flat)        // no previous reading
+        #expect(results[0].direction == .tripleUp) // 120 - 100 = 20 > 17
+        #expect(results[1].direction == .flat) // no previous reading
     }
 
-    @Test("date field is milliseconds since epoch")
-    func dateMilliseconds() throws {
+    @Test("date field is milliseconds since epoch") func dateMilliseconds() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -125,8 +117,7 @@ struct GlucoseStorageTests {
         #expect(results[0].date == expectedMs)
     }
 
-    @Test("fetch from empty store returns empty array")
-    func emptyFetch() throws {
+    @Test("fetch from empty store returns empty array") func emptyFetch() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -137,10 +128,8 @@ struct GlucoseStorageTests {
 
 // MARK: - Pump event tests
 
-@Suite("SimulationStorage — Pump Events", .serialized)
-struct PumpEventStorageTests {
-    @Test("store and fetch temp basal expands into two events")
-    func tempBasalExpansion() throws {
+@Suite("SimulationStorage — Pump Events", .serialized) struct PumpEventStorageTests {
+    @Test("store and fetch temp basal expands into two events") func tempBasalExpansion() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -159,8 +148,7 @@ struct PumpEventStorageTests {
         #expect(rateEvent?.temp == .absolute)
     }
 
-    @Test("temp basal rate event id is prefixed with underscore")
-    func tempBasalIdPrefix() throws {
+    @Test("temp basal rate event id is prefixed with underscore") func tempBasalIdPrefix() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -173,8 +161,7 @@ struct PumpEventStorageTests {
         #expect(rateEvent.id == "_\(durationEvent.id)")
     }
 
-    @Test("store and fetch SMB produces single bolus event")
-    func smbEvent() throws {
+    @Test("store and fetch SMB produces single bolus event") func smbEvent() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -187,8 +174,7 @@ struct PumpEventStorageTests {
         #expect(events[0].isSMB == true)
     }
 
-    @Test("fetch pump events filters 24-hour window")
-    func pumpEvents24HourWindow() throws {
+    @Test("fetch pump events filters 24-hour window") func pumpEvents24HourWindow() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -200,8 +186,7 @@ struct PumpEventStorageTests {
         #expect(events[0].type == .bolus)
     }
 
-    @Test("mixed temp basals and SMBs returned together")
-    func mixedEvents() throws {
+    @Test("mixed temp basals and SMBs returned together") func mixedEvents() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -213,8 +198,7 @@ struct PumpEventStorageTests {
         #expect(events.count == 3)
     }
 
-    @Test("fetch pump events from empty store returns empty array")
-    func emptyPumpFetch() throws {
+    @Test("fetch pump events from empty store returns empty array") func emptyPumpFetch() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -225,10 +209,8 @@ struct PumpEventStorageTests {
 
 // MARK: - Current temp basal tests
 
-@Suite("SimulationStorage — Current Temp Basal", .serialized)
-struct CurrentTempBasalTests {
-    @Test("returns default when no temp basal exists")
-    func defaultWhenEmpty() throws {
+@Suite("SimulationStorage — Current Temp Basal", .serialized) struct CurrentTempBasalTests {
+    @Test("returns default when no temp basal exists") func defaultWhenEmpty() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -238,8 +220,7 @@ struct CurrentTempBasalTests {
         #expect(result.temp == .absolute)
     }
 
-    @Test("returns remaining duration for active temp basal")
-    func remainingDuration() throws {
+    @Test("returns remaining duration for active temp basal") func remainingDuration() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -252,8 +233,7 @@ struct CurrentTempBasalTests {
         #expect(result.temp == .absolute)
     }
 
-    @Test("returns default when temp basal has expired")
-    func expiredTempBasal() throws {
+    @Test("returns default when temp basal has expired") func expiredTempBasal() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -265,8 +245,7 @@ struct CurrentTempBasalTests {
         #expect(result.rate == 0)
     }
 
-    @Test("returns default when temp basal is older than 20 minutes")
-    func outsideLookback() throws {
+    @Test("returns default when temp basal is older than 20 minutes") func outsideLookback() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -278,8 +257,7 @@ struct CurrentTempBasalTests {
         #expect(result.rate == 0)
     }
 
-    @Test("uses most recent temp basal when multiple exist")
-    func mostRecent() throws {
+    @Test("uses most recent temp basal when multiple exist") func mostRecent() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -291,8 +269,7 @@ struct CurrentTempBasalTests {
         #expect(result.duration == 25) // 30 - 5 = 25
     }
 
-    @Test("ignores SMB events when looking for temp basal")
-    func ignoresSMB() throws {
+    @Test("ignores SMB events when looking for temp basal") func ignoresSMB() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -306,10 +283,8 @@ struct CurrentTempBasalTests {
 
 // MARK: - Carb tests
 
-@Suite("SimulationStorage — Carbs", .serialized)
-struct CarbStorageTests {
-    @Test("store and fetch carbs")
-    func storeAndFetch() throws {
+@Suite("SimulationStorage — Carbs", .serialized) struct CarbStorageTests {
+    @Test("store and fetch carbs") func storeAndFetch() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -324,8 +299,7 @@ struct CarbStorageTests {
         #expect(results[0].id != nil)
     }
 
-    @Test("fetch carbs filters 24-hour window")
-    func carbs24HourWindow() throws {
+    @Test("fetch carbs filters 24-hour window") func carbs24HourWindow() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -337,8 +311,7 @@ struct CarbStorageTests {
         #expect(results[0].carbs == 50)
     }
 
-    @Test("fetch carbs excludes future entries")
-    func excludesFutureCarbs() throws {
+    @Test("fetch carbs excludes future entries") func excludesFutureCarbs() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -350,8 +323,7 @@ struct CarbStorageTests {
         #expect(results[0].carbs == 20)
     }
 
-    @Test("fetch carbs from empty store returns empty array")
-    func emptyCarbFetch() throws {
+    @Test("fetch carbs from empty store returns empty array") func emptyCarbFetch() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -359,8 +331,7 @@ struct CarbStorageTests {
         #expect(results.isEmpty)
     }
 
-    @Test("multiple carb entries returned")
-    func multipleCarbs() throws {
+    @Test("multiple carb entries returned") func multipleCarbs() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -375,10 +346,8 @@ struct CarbStorageTests {
 
 // MARK: - State management tests
 
-@Suite("SimulationStorage — State Management", .serialized)
-struct StateManagementTests {
-    @Test("initializeEmptyState creates directory and empty files")
-    func initCreatesFiles() throws {
+@Suite("SimulationStorage — State Management", .serialized) struct StateManagementTests {
+    @Test("initializeEmptyState creates directory and empty files") func initCreatesFiles() throws {
         let dir = NSTemporaryDirectory() + "sim_test_\(UUID().uuidString)"
         let storage = SimulationStorage(stateDir: dir)
         defer { cleanup(storage) }
@@ -391,8 +360,7 @@ struct StateManagementTests {
         #expect(storage.fetchCarbs(at: baseTime).isEmpty)
     }
 
-    @Test("save and load autosens round-trips correctly")
-    func autosensRoundTrip() throws {
+    @Test("save and load autosens round-trips correctly") func autosensRoundTrip() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -403,8 +371,7 @@ struct StateManagementTests {
         #expect(loaded.ratio == 1.2)
     }
 
-    @Test("save and load autosens with default ratio")
-    func autosensDefault() throws {
+    @Test("save and load autosens with default ratio") func autosensDefault() throws {
         let storage = try makeStorage()
         defer { cleanup(storage) }
 
@@ -416,8 +383,7 @@ struct StateManagementTests {
         #expect(loaded.timestamp == nil)
     }
 
-    @Test("calling initializeEmptyState twice does not fail")
-    func doubleInit() throws {
+    @Test("calling initializeEmptyState twice does not fail") func doubleInit() throws {
         let dir = NSTemporaryDirectory() + "sim_test_\(UUID().uuidString)"
         let storage = SimulationStorage(stateDir: dir)
         defer { cleanup(storage) }
