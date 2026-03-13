@@ -41,7 +41,7 @@ struct CarbEstimationResult: Codable {
 }
 
 @Model final class Item {
-    var timestamp: Date
+    private(set) var timestamp: Date // private(set) prevents timestamp from being set after initialization.
     var carbohydrates: Double
     var confidence: String
     var explanation: String?

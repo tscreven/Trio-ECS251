@@ -42,7 +42,6 @@ final class OpenAPS {
         return NSDecimalNumber(decimal: value)
     }
 
-    // Use the helper function for cleaner code
     func processDetermination(_ determination: Determination) async {
         await context.perform {
             let newOrefDetermination = OrefDetermination(context: self.context)
@@ -128,39 +127,43 @@ final class OpenAPS {
         }
     }
 
-    /// Fetch AI carb predictions and run it through clamping algorithm.
+    /// Fetch carb commands and run it through clamping algorithm.
     private func fetchAndProcessCarbs(additionalCarbs: Decimal? = nil, carbsDate: Date? = nil) async throws -> String {
         // Fetch from shared storage and add as an entry
-        let fetchedAIEntries: [[String: Any]]? = {
-            var descriptor = FetchDescriptor<Item>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        let fetchCommands: [[String: Any]]? = {
+            // Cutoff for commands in persistent storage = 24 hours from current date
+            let cutoffDate = Date().addingTimeInterval(-24 * 60 * 60)
+            let descriptor = FetchDescriptor<Item>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             do {
                 let items: [Item] = try sharedContext.fetch(descriptor)
+
+                // Delete stale items from persistent storage
+                for item in items where item.timestamp < cutoffDate {
+                    sharedContext.delete(item)
+                }
+                try sharedContext.save()
+                let freshItems = items.filter { $0.timestamp >= cutoffDate }
+
                 // Convert items to accepted JSON format
-                let entries = items.map { $0.toCarbEntry() }
-                print("IPC: Found \(entries)")
+                let entries = freshItems.map { $0.toCarbEntry() }
                 return entries
             } catch {
                 return nil
             }
         }()
 
-        // Use a mutable variable for potential DEBUG injection or clamping
-        var aiEntriesSource = fetchedAIEntries
+        let commandsSource = fetchCommands
 
-        #if DEBUG
-            aiEntriesSource = debugAIEntries()
-        #endif
-
-        let clampedAIEntries: [[String: Any]]?
-        if let aiEntries = aiEntriesSource {
+        let clampedCommands: [[String: Any]]?
+        if let commands = commandsSource {
             do {
-                clampedAIEntries = try await clampCarbs(aiEntries)
+                clampedCommands = try await clampCarbs(commands)
             } catch {
-                debug(.openAPS, "Failed to clamp AI carb entries: \(error)")
-                clampedAIEntries = aiEntries
+                debug(.openAPS, "Failed to clamp carb command: \(error)")
+                clampedCommands = commands
             }
         } else {
-            clampedAIEntries = nil
+            clampedCommands = nil
         }
 
         lazy var appendingEntry: (String, [[String: Any]]) -> String = { jsonArray, additionalEntry in
@@ -213,8 +216,8 @@ final class OpenAPS {
                 jsonArray = appendingEntry(jsonArray, [additionalEntry])
             }
 
-            if let AIentries = clampedAIEntries ?? aiEntriesSource {
-                jsonArray = appendingEntry(jsonArray, AIentries)
+            if let carbEntries = clampedCommands ?? commandsSource {
+                jsonArray = appendingEntry(jsonArray, carbEntries)
             }
 
             return jsonArray
@@ -223,40 +226,9 @@ final class OpenAPS {
         return json
     }
 
-    #if DEBUG
-        private func debugAIEntries() -> [[String: Any]] {
-            let now = Date()
-            let formatter = ISO8601DateFormatter()
-
-            let entries: [(minutesAgo: Int, carbs: Double)] = [
-                (20, 12),
-                (15, 18),
-                (10, 8),
-                (5, 22),
-                (0, 16)
-            ]
-
-            return entries.map { entry in
-                let date = now.addingTimeInterval(TimeInterval(-entry.minutesAgo * 60))
-                let formattedDate = formatter.string(from: date)
-                return [
-                    "carbs": entry.carbs,
-                    "actualDate": formattedDate,
-                    "id": UUID().uuidString,
-                    "note": "debug",
-                    "protein": 0,
-                    "created_at": formattedDate,
-                    "isFPU": false,
-                    "fat": 0,
-                    "enteredBy": "Trio-Debug"
-                ]
-            }
-        }
-    #endif
-
-    private func clampCarbs(_ aiEntries: [[String: Any]]) async throws -> [[String: Any]] {
+    private func clampCarbs(_ carbCommands: [[String: Any]]) async throws -> [[String: Any]] {
         let lookback = 5
-        guard !aiEntries.isEmpty else { return aiEntries }
+        guard !carbCommands.isEmpty else { return carbCommands }
 
         let glucoseEntries = try await fetchRecentGlucoseEntries(fetchLimit: lookback + 1)
         let iobEntries = storage.retrieve(OpenAPS.Monitor.iob, as: [IOBEntry].self) ?? []
@@ -267,11 +239,11 @@ final class OpenAPS {
 
         let profileJson = loadFileFromStorage(name: Settings.profile)
         guard let profile = try? JSONBridge.profile(from: profileJson) else {
-            return aiEntries
+            return carbCommands
         }
 
         let clampedTotal = addedGlucoseClamp(
-            externalCarbs: aiEntries,
+            externalCarbs: carbCommands,
             glucoseEntries: glucoseEntries,
             iobEntries: iobEntries,
             bolusEntries: bolusEntries,
@@ -279,16 +251,16 @@ final class OpenAPS {
         )
 
         if let clampedTotal {
-            return applyClampedTotal(clampedTotal, to: aiEntries, lookback: lookback)
+            return applyClampedTotal(clampedTotal, to: carbCommands, lookback: lookback)
         }
 
         return cobClamp(
-            externalCarbs: aiEntries,
+            externalCarbs: carbCommands,
             glucoseEntries: glucoseEntries,
             iobEntries: iobEntries,
             bolusEntries: bolusEntries,
             insulinSensitivity: profile.sensitivityFor()
-        ) ?? aiEntries
+        ) ?? carbCommands
     }
 
     private func addedGlucoseClamp(
@@ -334,8 +306,8 @@ final class OpenAPS {
         return max(0, clamped)
     }
 
-    private func applyClampedTotal(_ clampedTotal: Double, to aiEntries: [[String: Any]], lookback: Int) -> [[String: Any]] {
-        var updated = aiEntries
+    private func applyClampedTotal(_ clampedTotal: Double, to carbCommands: [[String: Any]], lookback: Int) -> [[String: Any]] {
+        var updated = carbCommands
         let indices = Array(updated.indices.suffix(lookback))
         let currentTotal = indices.compactMap { updated[$0]["carbs"] as? Double }.reduce(0, +)
 
