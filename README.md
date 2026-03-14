@@ -1,6 +1,22 @@
-# Trio Feature Integration Project
-Project intended to allow users to incorporate new features/additions to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Safety rails + data sharing currently under construction. Below is the instructions for Trio from the actual Trio repo:
+# Trio Third Party Feature Integration
+Project intended to allow users to incorporate new features to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Software implements safety rails + data sharing between separate running processes and Trio. The structure of our system's software and simulator is below:
 
+## Data Sharing Model
+There are two relevant object types in the data sharing model. Both of these objects are defined in "Trio/Model/Item.swift". `Instruction` contains a carbohydrate command from a third party feature to Trio. `LoopDataPoint` makes available the last 24 hours of timestamped data the app collects for third party features to read. Within these objects, access modifiers and process id checks are used to avoid data races between processes.
+
+In "Trio/Sources/APS/APSManager.swift", Trio writes new data to `LoopDataPoint` to keep context fresh for third party features. Start at `syncLoopDataPointsToSwiftData()`.
+
+Finally, in "Trio/Sources/APS/OpenAPS.swift", `Instruction` variables are fetched from persistent data and stored in local memory when the Trio core algorithm starts to run the insulin dosing algorithm. Stale `Instruction` variables are also deleted from device memory here. Read `fetchAndProcessCarbs()`.
+
+## Clamping Algorithm
+The clamping algorithm runs solely in "Trio/Sources/APS/OpenAPS.swift". Carb entries are ran through the added glucose clamp and carb on board clamp. The algorithm is facilitated via `clampCarbs()` which is called in `fetchAndProcessCarbs()`.
+
+## Simulator
+Write notes for simulator here.
+
+\
+\
+Below is the instructions for Trio from the actual Trio repository:
 # Trio
 
 ## Introduction
