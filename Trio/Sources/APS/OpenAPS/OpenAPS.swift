@@ -133,9 +133,9 @@ final class OpenAPS {
         let fetchCommands: [[String: Any]]? = {
             // Cutoff for commands in persistent storage = 24 hours from current date
             let cutoffDate = Date().addingTimeInterval(-24 * 60 * 60)
-            let descriptor = FetchDescriptor<Item>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            let descriptor = FetchDescriptor<Instruction>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             do {
-                let items: [Item] = try sharedContext.fetch(descriptor)
+                let items: [Instruction] = try sharedContext.fetch(descriptor)
 
                 // Delete stale items from persistent storage
                 for item in items where item.timestamp < cutoffDate {

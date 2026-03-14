@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 import UIKit
@@ -9,7 +10,7 @@ class SwiftDataController {
     init() {
         let appGroupId = Bundle.main.appGroupSuiteName ?? ""
         let schema = Schema([
-            Item.self,
+            Instruction.self,
             LoopDataPoint.self
         ])
 
@@ -40,11 +41,12 @@ struct CarbEstimationResult: Codable {
     }
 }
 
-@Model final class Item {
-    private(set) var timestamp: Date // private(set) prevents timestamp from being set after initialization.
-    var carbohydrates: Double
-    var confidence: String
-    var explanation: String?
+@Model final class Instruction {
+    // private(set) prevents variables from being changed after initialization.
+    private(set) var timestamp: Date
+    private(set) var carbohydrates: Double
+    private(set) var confidence: String
+    private(set) var explanation: String?
     @Attribute(.externalStorage) var imageData: Data?
 
     init(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?, imageData: Data?) {
@@ -93,6 +95,10 @@ struct CarbEstimationResult: Codable {
 }
 
 @Model final class LoopDataPoint {
+    private enum Authorization {
+        static let trioProcessIDKey = "TrioAppProcessID"
+    }
+
     enum Metric {
         static let glucose = "glucose"
         static let iob = "iob"
@@ -104,7 +110,32 @@ struct CarbEstimationResult: Codable {
     var timestamp: Date
     var value: Double
 
+    static func registerCurrentProcessAsAuthorizedCreator() {
+        guard let suiteName = Bundle.main.appGroupSuiteName,
+              let sharedDefaults = UserDefaults(suiteName: suiteName)
+        else {
+            return
+        }
+
+        sharedDefaults.set(Int(getpid()), forKey: Authorization.trioProcessIDKey)
+    }
+
+    private static func currentProcessIsAuthorizedCreator() -> Bool {
+        guard let suiteName = Bundle.main.appGroupSuiteName,
+              let sharedDefaults = UserDefaults(suiteName: suiteName),
+              let authorizedPID = sharedDefaults.object(forKey: Authorization.trioProcessIDKey) as? Int
+        else {
+            return false
+        }
+
+        return authorizedPID == Int(getpid())
+    }
+
     init(metric: String, timestamp: Date, value: Double) {
+        guard Self.currentProcessIsAuthorizedCreator() else {
+            fatalError("LoopDataPoint initialization is restricted to the authorized Trio app process.")
+        }
+
         self.metric = metric
         self.timestamp = timestamp
         self.value = value
