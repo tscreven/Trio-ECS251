@@ -29,62 +29,49 @@ class SwiftDataController {
     }
 }
 
-struct CarbEstimationResult: Codable {
-    let carbohydrates: Double
-    let confidence: Confidence
-    let explanation: String?
-
-    enum Confidence: String, Codable {
-        case low
-        case medium
-        case high
-    }
-}
-
 @Model final class Instruction {
     // private(set) prevents variables from being changed after initialization.
     private(set) var timestamp: Date
     private(set) var carbohydrates: Double
     private(set) var confidence: String
-    private(set) var explanation: String?
-    @Attribute(.externalStorage) var imageData: Data?
+    private(set) var explanation: String
+    private static var maxExplanation: Int = 256
 
-    init(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?, imageData: Data?) {
+    init(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?) {
         self.timestamp = timestamp
         self.carbohydrates = carbohydrates
-        self.confidence = confidence
-        self.explanation = explanation
-        self.imageData = imageData
+        self.confidence = Instruction.checkConfidence(confidence)
+        
+        // Setting max explanation limit to 256 characters.
+        if let explanation, !explanation.isEmpty {
+            self.explanation = String(explanation.prefix(Instruction.maxExplanation))
+        } else {
+            self.explanation = "No explanation given"
+        }
+    }
+    
+    /// Return formatted confidence String values. Default to "Low" if given confidence does not conform.
+    private static func checkConfidence(_ confidence: String) -> String {
+        switch confidence.lowercased() {
+        case "high":
+            return "High"
+        case "medium":
+            return "Medium"
+        default:
+            return "Low"
+        }
     }
 
-    convenience init(result: CarbEstimationResult, image: UIImage?) {
-        let imageData = image?.jpegData(compressionQuality: 0.7)
-        self.init(
-            timestamp: Date(),
-            carbohydrates: result.carbohydrates,
-            confidence: result.confidence.rawValue,
-            explanation: result.explanation,
-            imageData: imageData
-        )
-    }
-
-    var confidenceEnum: CarbEstimationResult.Confidence {
-        CarbEstimationResult.Confidence(rawValue: confidence) ?? .low
-    }
-
-    var image: UIImage? {
-        guard let imageData = imageData else { return nil }
-        return UIImage(data: imageData)
-    }
-
+    /// Return carb entry matching format Trio's computing base expects.
     func toCarbEntry() -> [String: Any] {
         let formattedDate = ISO8601DateFormatter().string(from: timestamp)
-
+        let note = explanation
+        
         return [
             "carbs": carbohydrates,
             "actualDate": formattedDate,
             "id": UUID().uuidString,
-            "note": NSNull(),
+            "note": note,
             "protein": 0,
             "created_at": formattedDate,
             "isFPU": false,
@@ -96,7 +83,7 @@ struct CarbEstimationResult: Codable {
 
 @Model final class LoopDataPoint {
     private enum Authorization {
-        static let trioProcessIDKey = "TrioAppProcessID"
+        static let trioPIDKey = "TrioAppProcessID"
     }
 
     enum Metric {
@@ -109,21 +96,23 @@ struct CarbEstimationResult: Codable {
     var metric: String
     var timestamp: Date
     var value: Double
-
-    static func registerCurrentProcessAsAuthorizedCreator() {
+    
+    /// Register process ID into app group.
+    static func registerCurrentProcess() {
         guard let suiteName = Bundle.main.appGroupSuiteName,
               let sharedDefaults = UserDefaults(suiteName: suiteName)
         else {
             return
         }
 
-        sharedDefaults.set(Int(getpid()), forKey: Authorization.trioProcessIDKey)
+        sharedDefaults.set(Int(getpid()), forKey: Authorization.trioPIDKey)
     }
-
-    private static func currentProcessIsAuthorizedCreator() -> Bool {
+    
+    /// Return true iff calling process is Trio.
+    private static func authorizePID() -> Bool {
         guard let suiteName = Bundle.main.appGroupSuiteName,
               let sharedDefaults = UserDefaults(suiteName: suiteName),
-              let authorizedPID = sharedDefaults.object(forKey: Authorization.trioProcessIDKey) as? Int
+              let authorizedPID = sharedDefaults.object(forKey: Authorization.trioPIDKey) as? Int
         else {
             return false
         }
@@ -132,7 +121,7 @@ struct CarbEstimationResult: Codable {
     }
 
     init(metric: String, timestamp: Date, value: Double) {
-        guard Self.currentProcessIsAuthorizedCreator() else {
+        guard Self.authorizePID() else {
             fatalError("LoopDataPoint initialization is restricted to the authorized Trio app process.")
         }
 
@@ -141,3 +130,4 @@ struct CarbEstimationResult: Codable {
         self.value = value
     }
 }
+
