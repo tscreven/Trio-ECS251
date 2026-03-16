@@ -34,7 +34,7 @@ class SwiftDataController {
     private(set) var timestamp: Date
     private(set) var carbohydrates: Double
     private(set) var confidence: String
-    private(set) var explanation: String
+    private(set) var explanation: String?
     private static var maxExplanation: Int = 256
 
     init(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?) {
@@ -45,8 +45,6 @@ class SwiftDataController {
         // Setting max explanation limit to 256 characters.
         if let explanation, !explanation.isEmpty {
             self.explanation = String(explanation.prefix(Instruction.maxExplanation))
-        } else {
-            self.explanation = "No explanation given"
         }
     }
     
@@ -65,7 +63,7 @@ class SwiftDataController {
     /// Return carb entry matching format Trio's computing base expects.
     func toCarbEntry() -> [String: Any] {
         let formattedDate = ISO8601DateFormatter().string(from: timestamp)
-        let note = explanation
+        let note = explanation ?? "No explanation given."
         
         return [
             "carbs": carbohydrates,
