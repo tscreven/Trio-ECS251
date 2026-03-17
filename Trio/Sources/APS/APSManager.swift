@@ -763,7 +763,7 @@ final class BaseAPSManager: APSManager, Injectable {
 
     private func syncLoopDataPointsToSwiftData() async {
         let now = Date()
-        let cutoff = Date().addingTimeInterval(-6 * 60 * 60)
+        let cutoff = Date.oneDayAgo
         var samples: [(metric: String, timestamp: Date, value: Double)] = []
 
         do {
