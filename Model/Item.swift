@@ -35,19 +35,36 @@ class SwiftDataController {
     private(set) var carbohydrates: Double
     private(set) var confidence: String
     private(set) var explanation: String?
-    private static var maxExplanation: Int = 256
+    private(set) var processID: Int32
+    private static var maxExplanation: Int = 128
 
-    init(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?) {
+    /// Exit initializer early if same process generates command multiple times within the last 5 minutes.
+    init?(timestamp: Date = Date(), carbohydrates: Double, confidence: String, explanation: String?) {
+        let sharedContext = ModelContext(SwiftDataController.shared.container)
+        let descriptor = FetchDescriptor<Instruction>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        do {
+            let items: [Instruction] = try sharedContext.fetch(descriptor)
+            for item in items where item.processID == getpid() {
+                if item.timestamp.timeIntervalSince(timestamp) < 300 {
+                    fatalError("Third party feature cannot generate multiple commands within 5 minutes.")
+                }
+            }
+        } catch {
+            // if error when fetching previous commands, exit initalizer early without creating new object.
+            return nil
+        }
+
         self.timestamp = timestamp
         self.carbohydrates = carbohydrates
         self.confidence = Instruction.checkConfidence(confidence)
-        
-        // Setting max explanation limit to 256 characters.
+        processID = getpid()
+
+        // Setting max explanation limit to 128 characters.
         if let explanation, !explanation.isEmpty {
             self.explanation = String(explanation.prefix(Instruction.maxExplanation))
         }
     }
-    
+
     /// Return formatted confidence String values. Default to "Low" if given confidence does not conform.
     private static func checkConfidence(_ confidence: String) -> String {
         switch confidence.lowercased() {
@@ -64,7 +81,7 @@ class SwiftDataController {
     func toCarbEntry() -> [String: Any] {
         let formattedDate = ISO8601DateFormatter().string(from: timestamp)
         let note = explanation ?? "No explanation given."
-        
+
         return [
             "carbs": carbohydrates,
             "actualDate": formattedDate,
@@ -94,7 +111,7 @@ class SwiftDataController {
     var metric: String
     var timestamp: Date
     var value: Double
-    
+
     /// Register process ID into app group.
     static func registerCurrentProcess() {
         guard let suiteName = Bundle.main.appGroupSuiteName,
@@ -105,7 +122,7 @@ class SwiftDataController {
 
         sharedDefaults.set(Int(getpid()), forKey: Authorization.trioPIDKey)
     }
-    
+
     /// Return true iff calling process is Trio.
     private static func authorizePID() -> Bool {
         guard let suiteName = Bundle.main.appGroupSuiteName,
@@ -128,4 +145,3 @@ class SwiftDataController {
         self.value = value
     }
 }
-

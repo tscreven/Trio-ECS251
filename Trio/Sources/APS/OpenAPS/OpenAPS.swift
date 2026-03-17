@@ -131,13 +131,13 @@ final class OpenAPS {
     private func fetchAndProcessCarbs(additionalCarbs: Decimal? = nil, carbsDate: Date? = nil) async throws -> String {
         // Fetch from shared storage and add as an entry
         let fetchCommands: [[String: Any]]? = {
-            // Cutoff for commands in persistent storage = 24 hours from current date
-            let cutoffDate = Date().addingTimeInterval(-24 * 60 * 60)
+            // Cutoff for commands in persistent storage is 6 hours from current date
+            let cutoffDate = Date().addingTimeInterval(-6 * 60 * 60)
             let descriptor = FetchDescriptor<Instruction>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
             do {
                 let items: [Instruction] = try sharedContext.fetch(descriptor)
 
-                // Delete stale items from persistent storage
+                // Delete items from persistent storage if older than 6 hours
                 for item in items where item.timestamp < cutoffDate {
                     sharedContext.delete(item)
                 }

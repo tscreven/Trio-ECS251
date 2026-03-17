@@ -1,5 +1,5 @@
 # Trio Third Party Feature Integration
-Project intended to allow users to incorporate new features to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Software implements safety rails + data sharing between separate running processes and Trio. The structure of our system's software and simulator is below:
+Project intended to allow users to incorporate new features to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Software implements safety rails + data sharing between separate running processes and Trio. There are ~200 non-fatal warnings in the code which do not result in any errors while the application is running. These warnings come from existing software within Trio, not our added system. The structure of our system's software and simulator is below:
 
 ## Data Sharing Model
 There are two relevant object types in the data sharing model. Both of these objects are defined in "Trio/Model/Item.swift". `Instruction` contains a carbohydrate command from a third party feature to Trio. `LoopDataPoint` makes available the last 24 hours of timestamped data the app collects for third party features to read. Within these objects, access modifiers and process id checks are used to avoid data races between processes.
