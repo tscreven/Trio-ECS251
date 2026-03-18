@@ -12,11 +12,14 @@ Finally, in "Trio/Sources/APS/OpenAPS.swift", `Instruction` variables are fetche
 The clamping algorithm runs solely in "Trio/Sources/APS/OpenAPS.swift". Carb entries are ran through the added glucose clamp and carb on board clamp. The algorithm is facilitated via `clampCarbs()` which is called in `fetchAndProcessCarbs()`.
 
 ## Simulator
-Write notes for simulator here.
+### Acknowledgements
+All code related to the simualtion was written with Claude Opus/Sonnet 4.6 models. Symglucose was forked from:https://github.com/jxx123/simglucose
 
-\
-\
-Below is the instructions for Trio from the actual Trio repository:
+Symglucose is a python implementation of the FDA-approved UVa/Padova Simulator (2008 version) for research purposes. Two experiments were run in the simulator where it received a dosage of insulin without Trio's clamp, and another with the clamp. The simulator showed the virtual human entering extreme hypoglycemic ranges when dosed with the amount of insulin without the clamp, demonstrating the importance of the clamp.
+
+The code related to the simulator can be found in the simulator/ directory.
+
+
 # Trio
 
 ## Introduction
