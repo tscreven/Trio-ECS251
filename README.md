@@ -17,7 +17,7 @@ All code related to the simualtion was written with Claude Opus/Sonnet 4.6 model
 
 Symglucose is a python implementation of the FDA-approved UVa/Padova Simulator (2008 version) for research purposes. Two experiments were run in the simulator where it received a dosage of insulin without Trio's clamp, and another with the clamp. The simulator showed the virtual human entering extreme hypoglycemic ranges when dosed with the amount of insulin without the clamp, demonstrating the importance of the clamp.
 
-The code related to the simulator can be found in the simulator/ directory.
+The code related to the simulator can be found in the glucose_simulator/ directory. Details on the clamp vs no clamp experiment can be found at glucose_simulator/run_clamp_simulation.py
 
 
 # Trio
