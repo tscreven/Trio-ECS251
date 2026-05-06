@@ -1,4 +1,7 @@
 # Trio Third Party Feature Integration
+
+**Class Project, Do Not Use on a Real Person**
+
 Project intended to allow users to incorporate new features to Trio's insulin dosing algorithm by sandboxing the untrusted software away from the rest of the application. Software implements safety rails + data sharing between separate running processes and Trio. There are ~200 non-fatal warnings in the code which do not result in any errors while the application is running. These warnings come from existing software within Trio, not our added system. The structure of our system's software and simulator is below:
 
 ## Data Sharing Model
