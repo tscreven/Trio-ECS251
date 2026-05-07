@@ -638,7 +638,7 @@ final class BaseAPSManager: APSManager, Injectable {
 
         guard let pump = pumpManager else { return }
 
-        // unable to do temp basal during manual temp basal 😁
+        // unable to do temp basal during manual temp basal
         if isManualTempBasal {
             processError(APSError.manualBasalTemp(message: "Loop not possible during the manual basal temp"))
             return
@@ -867,7 +867,7 @@ final class BaseAPSManager: APSManager, Injectable {
             return // return without throwing an error
         }
 
-        // Unable to do temp basal during manual temp basal 😁
+        // Unable to do temp basal during manual temp basal
         if isManualTempBasal {
             throw APSError.manualBasalTemp(message: "Loop not possible during the manual basal temp")
         }
